@@ -1,0 +1,164 @@
+---
+title: "nucleotide diversity"
+output:
+  html_document: default
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+all_contigs_syn_nonsyn_INFO <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/syn_nonsyn_data.rds")
+```
+
+```{r}
+all_contigs_syn_nonsyn_INFO
+```
+
+# nucleotide diversity - syn_nonsyn -READ THE SNP FILE
+```{r}
+df_all_poly.5 <- read_rds("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_merged_polymorphisms.5.rds")
+df_all_poly.5 <- df_all_poly.5[1:40089,] # remove NA in the end of the dataset
+```
+
+# Contig lengths - FILE FOR CONTIG LENGTHS
+```{r}
+df_contig_length <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/df_contigs_length.rds")
+head(df_contig_length)
+```
+
+```{r}
+# add contig lengths
+df_all_poly.5 <- df_all_poly.5 %>% mutate(contig_length = ifelse(contig %in% df_contig_length$names, df_contig_length$contig_length, 0))
+# ADD NUCLEOTİDE DİVERSİTY PER SNP
+df_all_poly.5 <- df_all_poly.5 %>% mutate(nuc.div = (2*freq_ref.t.vulgaris*freq_alt.t.vulgaris*(248/(248-1)))/contig_length) # I used this to calculate nuc.div per site
+# add sny - nonsyn info per snp
+df_all_poly.5 <- df_all_poly.5 %>% mutate(syn_nonsyn = (all_contigs_syn_nonsyn_INFO %>% filter(snp %in% df_all_poly.5$snp))$syn_nonsyn)
+
+head(df_all_poly.5)
+```
+
+# Contigs of interest
+```{r}
+contigs_of_interest <- c("AT:Contig660", "AT:Contig4190", "FC:Contig12377", "FC:Contig71000", "FC:JX946357.1", "FC:JX946358.1", "FC:KC461937.1", "FC:KM272331.1", "FC:KM272332.1", "FC:KR920616.1")
+```
+
+```{r}
+df_contig_of_interests <- df_all_poly.5 %>% filter(contig %in% contigs_of_interest)
+df_contig_of_interests
+```
+
+# Calculate nucleotide diversity
+```{r}
+df_contig_of_interests %>% group_by(syn_nonsyn) %>% summarise(nuc.diversity = mean(nuc.div))
+df_contig_of_interests %>% group_by(contig) %>%  filter(syn_nonsyn == "synonymous") %>% summarise(nucleotide_diversity = mean(nuc.div)) %>% arrange(nucleotide_diversity)
+
+
+nuc.div.syn = df_contig_of_interests %>% group_by(contig) %>%  filter(syn_nonsyn == "synonymous") %>% summarise(nuc.div = mean(nuc.div))
+nuc.div.nonsyn = df_contig_of_interests %>% group_by(contig) %>%   filter(syn_nonsyn == "nonsynonymous") %>% summarise(nuc.div = mean(nuc.div))
+
+nuc.div.syn = nuc.div.syn %>% mutate(syn_nonsyn = "synonymous")
+nuc.div.nonsyn = nuc.div.nonsyn %>% mutate(syn_nonsyn = "nonsynoymous")
+
+df_contig <- rbind(nuc.div.syn, nuc.div.nonsyn)
+
+# piN/piS ratio
+nuc.div.syn2 = df_all_poly.5 %>% group_by(contig) %>%  filter(syn_nonsyn == "synonymous") %>% summarise(nuc.div.syn = mean(nuc.div))
+nuc.div.nonsyn2 = df_all_poly.5 %>% group_by(contig) %>%   filter(syn_nonsyn == "nonsynonymous") %>% summarise(nuc.div.nonsyn = mean(nuc.div))
+
+df_all_contigs <- nuc.div.syn2 %>% left_join(nuc.div.nonsyn2, by = "contig")
+df_all_contigs <- df_all_contigs %>% mutate(piN_piS_ratio = nuc.div.nonsyn / nuc.div.syn)
+df_all_contigs
+```
+
+```{r}
+df_all_contigs %>% summary
+```
+
+```{r}
+
+df_all_poly.5 %>% filter(contig == "FC:Contig71000") %>% arrange(pos) %>%  ggplot(aes(pos, nuc.div)) + geom_point() + theme_classic()+ ggtitle("FC:Contig71000")
+
+df_all_poly.5 %>% filter(contig == "FC:KC461937.1") %>% arrange(pos) %>%  ggplot(aes(pos, nuc.div)) + geom_point() + theme_classic()+ ggtitle("FC:KC461937.1")
+
+df_all_poly.5 %>% filter(contig == "FC:JX946357.1") %>% arrange(pos) %>%  ggplot(aes(pos, nuc.div)) + geom_point() + theme_classic()+ ggtitle("FC:JX946357.1")
+
+df_all_poly.5 %>% filter(contig == "FC:JX946358.1") %>% arrange(pos) %>%  ggplot(aes(pos, nuc.div)) + geom_point()+ theme_classic()+ ggtitle("FC:JX946358.1")
+
+df_all_poly.5 %>% filter(contig == "FC:KM272332.1") %>% arrange(pos) %>%  ggplot(aes(pos, nuc.div)) + geom_point()+ theme_classic()+ ggtitle("FC:KM272332.1")
+
+df_all_poly.5 %>% filter(contig == "AT:Contig660") %>% arrange(pos) %>%  ggplot(aes(pos, nuc.div)) + geom_point()+ theme_classic()+ ggtitle("AT:Contig660")
+
+df_all_poly.5 %>% filter(contig == "FC:KM272331.1") %>% arrange(pos) %>%  ggplot(aes(pos, nuc.div)) + geom_point()+ theme_classic()+ ggtitle("FC:KM272331.1")
+
+df_all_poly.5 %>% filter(contig == "FC:Contig12377") %>% arrange(pos) %>%  ggplot(aes(pos, nuc.div)) + geom_point()+ theme_classic()+ ggtitle("FC:Contig12377")
+
+df_all_poly.5 %>% filter(contig == "FC:KR920616.1") %>% arrange(pos) %>%  ggplot(aes(pos, nuc.div)) + geom_point()+ theme_classic()+ ggtitle("FC:KR920616.1")
+
+df_all_poly.5 %>% filter(contig == "AT:Contig4190") %>% arrange(pos) %>%  ggplot(aes(pos, nuc.div)) + geom_point()+ theme_classic() + ggtitle("AT:Contig4190")
+
+
+```
+```{r}
+df_syn_contigs<- df_all_poly.5 %>% filter(syn_nonsyn == "synonymous") %>% group_by(contig) %>% summarise(nuc.diversity = mean(nuc.div))
+df_nonsyn_contigs<- df_all_poly.5 %>% filter(syn_nonsyn == "nonsynonymous") %>% group_by(contig) %>% summarise(nuc.diversity = mean(nuc.div))
+
+# contig of interest
+nuc.div_interest <- tibble(contig = (df_syn_contigs %>% filter(contig %in% contigs_of_interest))$contig,
+                           syn_div = (df_syn_contigs %>% filter(contig %in% contigs_of_interest))$nuc.diversity,
+                           nonsyn_div = (df_nonsyn_contigs %>% filter(contig %in% contigs_of_interest))$nuc.diversity,
+                           ratio = nonsyn_div/syn_div)
+df_syn_contigs
+nuc.div_interest %>% arrange(-nonsyn_div)
+nuc.div_interest %>%  summary()
+```
+
+# Plots
+```{r}
+df_syn_contigs %>%  ggplot(aes(nuc.diversity)) + theme_classic() +
+  geom_histogram(col = "black", fill = "lightblue", bins = 50) + ylab("Frequency") + ggtitle("Distribution of Synonymous Nucleotide Diversity of Contigs") + xlab("synonymous diversity") + geom_vline(xintercept = nuc.div_interest$syn_div, color = "grey", linetype = "dashed", size = 0.6)+ coord_flip()
+
+df_nonsyn_contigs %>%  ggplot(aes(nuc.diversity)) + theme_classic() +
+  geom_histogram(col = "black", fill = "lightblue", bins = 50) + 
+  ggtitle("Distribution of Nonsynonymous Nucleotide Diversity of Contigs") + xlab("Nonsynonymous diversity") + ylab("Frequency") + geom_vline(xintercept = nuc.div_interest$nonsyn_div, color = "grey", linetype = "dashed", size = 0.6)+ coord_flip()
+
+df_all_contigs %>%  ggplot(aes(piN_piS_ratio)) + geom_histogram(bins = 50, col = "black", fill = "lightblue") + 
+    ggtitle("Distribution of piN/piS of contigs") + xlab("piN/piS") + ylab("Frequency") + theme_classic() +geom_vline(xintercept = nuc.div_interest$ratio, color = "grey", linetype = "dashed", size = 0.6)+ coord_flip()
+
+df_all_contigs %>% summary()
+
+```
+
+```{r}
+df_all_poly.5 %>% 
+  ggplot(aes(nuc.div, fill = syn_nonsyn)) + 
+  geom_histogram(col = "black", bins = 70) + ggtitle("Distribution of Nucleotide Diversity of synonymous and nonsynonymous SNPs")
+
+df_contig %>% ggplot(aes(nuc.div, fill = syn_nonsyn)) + geom_histogram(bins = 15) + theme_classic() +
+  facet_wrap(~contig) + ggtitle("Synonymous - Nonsynonymous Nucleotide Diversity per Contig")
+```
+# Distribution of Nucleotide Diversity of synonymous and nonsynonymous SNPs
+```{r}
+df_all_poly.5 %>% group_by(syn_nonsyn) %>% 
+  ggplot(aes(nuc.div, fill = syn_nonsyn)) + 
+  geom_histogram(col = "black", bins = 70) + facet_grid(~syn_nonsyn) + 
+  ggtitle("Distribution of Nucleotide Diversity of synonymous and nonsynonymous SNPs") + ylab("Frequency") + xlab("Nucleotide Diversity")
+```
+
+
+
+```{r}
+df_all_poly.5 %>% filter(contig == "FC:Contig71000") %>% arrange(pos, decreaing = TRUE)
+```
+
+# DAF - nonsyn_syn
+```{r}
+df_all_poly.5 %>% group_by(syn_nonsyn) %>% 
+  ggplot(aes(derived_freq.t.vulgaris, fill = syn_nonsyn)) + 
+  geom_histogram(bins = 70, col = "black") + 
+  facet_grid(~syn_nonsyn) +
+  ggtitle("Derived allele frequency for Nonsynonymous and Synonymous SNPs") +
+  xlab("Derived Allele Frequency") + ylab("Frequency")
+```
+

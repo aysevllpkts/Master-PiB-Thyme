@@ -1,0 +1,242 @@
+---
+title: "MK TEST FOR ALL CONTIGS"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+all_contigs_syn_nonsyn_INFO2 <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/syn_nonsyn_data.rds")
+all_contigs_syn_nonsyn_INFO2 %>%  filter(fixed_poly == "fixed")
+```
+
+
+```{r}
+contigs <- unique(all_contigs_syn_nonsyn_INFO2$contig)
+
+Pn = c(0)
+Ps = c(0)
+Fn = c(0)
+Fs = c(0)
+NI = c(0)
+alpha = c(0)
+DoS = c(0)
+avg_alpha1 = c(0)
+avg_alpha2 = c(0)
+PnPs = c(0)
+FnFs = c(0)
+p_val = c(0)
+
+for (i in 1:length(contigs)) {
+  
+  poly <- all_contigs_syn_nonsyn_INFO2 %>%  filter(contig == contigs[i] & fixed_poly == "poly")
+  fixed <- all_contigs_syn_nonsyn_INFO2 %>%  filter(contig == contigs[i] & fixed_poly == "fixed")
+  
+  Pn[i] <- sum(poly$syn_nonsyn == "nonsynonymous")
+  Ps[i] <- sum(poly$syn_nonsyn == "synonymous")
+  Fn[i] <- sum(fixed$syn_nonsyn == "nonsynonymous")
+  Fs[i] <- sum(fixed$syn_nonsyn == "synonymous")
+  
+  PnPs[i] <- Pn[i] / Ps[i] 
+  FnFs[i] <- Fn[i] / Fs[i]
+  NI[i] <- PnPs[i] / FnFs[i]
+  alpha[i] <- 1 - NI[i]
+  DoS[i] <- (Fn[i]/(Fn[i]+Fs[i])) - (Pn[i]/(Pn[i]+Ps[i]))
+  avg_alpha1[i] = ((Fs[i]*Pn[i])/(Ps[i]+Fs[i]))
+  avg_alpha2[i] = ((Ps[i]*Fn[i])/(Ps[i]+Fs[i]))
+
+  cont_matrix <- matrix(c(Fn[i], Pn[i], Fs[i], Ps[i]), ncol = 2)
+  p_val[i] <- fisher.test(cont_matrix)$p.value
+  
+}
+
+
+avgerage_alpha <- 1 - (sum(avg_alpha1)/sum(avg_alpha2))
+avgerage_alpha # negative there is an excess ıf nonsynoymous polymorphisms
+MK_test_all2 <- tibble(contigs = contigs, Fn = Fn, Fs = Fs, Pn = Pn, Ps = Ps, BetweenN_S = FnFs, WithinN_S = PnPs, DoS = DoS, NI = NI, a = alpha, p.val = p_val)
+
+MK_test_all2 %>% arrange(DoS, decreasing = FALSE)
+MK_test_all2 %>% filter(a > 0)
+
+```
+
+# Plot the results
+```{r}
+for.plot <- matrix(c(MK_test_all2$BetweenN_S, MK_test_all2$WithinN_S), ncol = 2)
+colnames(for.plot)=c("Between", "within")
+rownames(for.plot)=MK_test_all2$contigs
+```
+
+```{r}
+barplot(t(for.plot), beside=T,
+        ylab = "Ratio of Nonsynonymous to Synonymous Sites",
+        col = c("darkgreen", "dodgerblue"),
+        ylim = c(0,4),  las = 3, cex.axis = 1, cex.names = 0.1)
+
+```
+
+```{r}
+#The Neutrality Index is useful because we know that values < 1 can be indicative of positive selection, while values >1 may be caused by negative or balancing selection.
+
+MK_test_all2 %>% 
+  ggplot(aes(contigs, NI)) + 
+  geom_bar(stat = "identity", fill = "lightblue", col = "black") + 
+  ylim(0, 8) + 
+  geom_hline(yintercept =  1, col = "darkred") + 
+  theme(axis.text.x = element_text(angle = 90)) + 
+  geom_text(x = 9.5, y = 7, label = "NI < 1 positive selection", color = "darkred", size = 3) + 
+  geom_text(x = 9.5, y = 7.4, label = "NI > 1 negative selection", color = "darkred", size = 3) +
+  ggtitle("Neutrality Index per Contigs") 
+```
+# contig of interests
+```{r}
+contigs_of_interest <- c("AT:Contig660", "AT:Contig4190", "FC:Contig12377", "FC:Contig71000", "FC:JX946357.1", "FC:JX946358.1", "FC:KC461937.1", "FC:KM272331.1", "FC:KM272332.1", "FC:KR920616.1")
+```
+
+```{r}
+MK_test_interest <- MK_test_all2 %>% 
+  filter(contigs == "FC:Contig71000" | contigs == "FC:Contig12377" | contigs == "FC:KR920616.1"  | contigs == "FC:JX946357.1"  |contigs == "FC:KM272331.1"  |contigs == "FC:KM272332.1"  | contigs == "FC:JX946358.1" |contigs == "AT:Contig4190" |contigs == "AT:Contig660"|contigs == "FC:KC461937.1" )
+```
+
+```{r}
+(MK_test_interest)
+```
+
+```{r}
+for.plot <- matrix(c(MK_test_interest$BetweenN_S, MK_test_interest$WithinN_S), ncol = 2)
+colnames(for.plot)=c("Between", "within")
+rownames(for.plot)=MK_test_interest$contigs
+```
+
+```{r}
+barplot(t(for.plot), beside=T,
+        ylab = "Ratio of Nonsynonymous to Synonymous Sites",
+        col = c("darkgreen", "dodgerblue"),
+        ylim = c(0,14),  las = 3, cex.axis = 1, cex.names = 0.7)
+legend("topright", c("Between Species (F)", "Within Species (P)"),
+    pch=15, col=c("darkgreen", "dodgerblue"), bty="n", cex = 0.7)
+
+temp = rep("p =", 10)
+p.labels=paste(temp, round(MK_test_interest$p.val, 7))
+
+text(c(2,4,8,11,14,16.3,20,23,26.5,30), c(0.7,2.4,1.7,2.9,7,12.3,6.5,3,2.3, 2.3), p.labels, cex = 0.7)
+```
+
+# SYN-NONSYN dist for poly and fixed alleles
+```{r}
+all_contigs_syn_nonsyn_INFO2 %>% 
+  filter(contig == "FC:Contig71000" | contig == "FC:Contig12377" | contig == "FC:KR920616.1"  | contig == "FC:JX946357.1"  |contig == "FC:KM272331.1"  |contig == "FC:KM272332.1"  | contig == "FC:JX946358.1" |contig == "AT:Contig4190" |contig == "AT:Contig660"|contig == "FC:KC461937.1" ) %>%  
+  filter(fixed_poly == "poly") %>% group_by(contig) %>%  
+  ggplot(aes(syn_nonsyn, fill = syn_nonsyn)) + 
+  geom_histogram(stat = "count") + 
+  facet_wrap(~contig) + 
+  theme(axis.text.x = element_blank(), plot.title = element_text(size = 12)) + 
+  ggtitle("Nonsynonymous to Synonymous Ratio for Polymorphisms per Contig") + 
+  xlab("Class") + ylab("Frequency") + theme_classic()
+
+all_contigs_syn_nonsyn_INFO2 %>% 
+  filter(contig == "FC:Contig71000" | contig == "FC:Contig12377" | contig == "FC:KR920616.1"  | contig == "FC:JX946357.1"  |contig == "FC:KM272331.1"  |contig == "FC:KM272332.1"  | contig == "FC:JX946358.1" |contig == "AT:Contig4190" |contig == "AT:Contig660"|contig == "FC:KC461937.1" ) %>%  
+  filter(fixed_poly == "fixed") %>% group_by(contig) %>%  
+  ggplot(aes(syn_nonsyn, fill = syn_nonsyn)) + 
+  geom_histogram(stat = "count") + 
+  facet_wrap(~contig) + 
+  theme(axis.text.x = element_blank(), plot.title = element_text(size = 12)) + 
+  ggtitle("Nonsynonymous to Synonymous Ratio for Fixed Allele per Contig") + 
+  xlab("Class") + ylab("Frequency") + theme_classic()
+
+```
+
+# NI Plot
+```{r}
+#The Neutrality Index is useful because we know that values < 1 can be indicative of positive selection, while values >1 may be caused by negative or balancing selection.
+
+MK_test_interest %>% 
+  ggplot(aes(contigs, NI)) + 
+  geom_bar(stat = "identity", fill = "darkred", col = "black") + 
+  ylim(0, 4) + 
+  geom_hline(yintercept =  1, col = "darkblue") + 
+  theme(axis.text.x = element_text(angle = 90)) + 
+  geom_text(x = 9.5, y = 7, label = "NI < 1 positive selection", color = "black", size = 4) + 
+  geom_text(x = 9.5, y = 7.4, label = "NI > 1 negative selection", color = "black", size = 4) +
+  ggtitle("Neutrality Index per Contig of Interest") +
+  geom_text(x = 9.5, y = 3, label = "NI < 1 positive selection", color = "black", size = 3) + 
+  geom_text(x = 9.5, y = 3.4, label = "NI > 1 negative selection", color = "black", size = 3)+ theme_classic() + theme(axis.text.x = element_text(angle = 90))
+```
+```{r}
+MK_test_interest %>% 
+  ggplot(aes(contigs, DoS)) + 
+  geom_bar(stat = "identity", fill = "darkred", col = "black") + 
+  #geom_hline(yintercept =  1, col = "darkred") + 
+  theme(axis.text.x = element_text(angle = 90)) + 
+  geom_text(x = 9.5, y = 7, label = "NI < 1 positive selection", color = "darkred", size = 3) + 
+  geom_text(x = 9.5, y = 7.4, label = "NI > 1 negative selection", color = "darkred", size = 3) +
+  ggtitle("Direction of Selection per Contig of Interest") + theme_classic() + theme(axis.text.x = element_text(angle = 90))
+```
+```{r}
+MK_test_interest %>% arrange(-DoS)
+```
+
+
+```{r}
+MK_test_all2 %>% ggplot(aes(NI)) + geom_histogram(bins = 70, fill = "darkred", col = "black") +
+  geom_vline(xintercept = MK_test_interest$NI, color = "grey", linetype = "dashed", size = 0.8) + theme_classic() +
+  geom_text(data = MK_test_interest[1,], aes(x = NI	 , y = 63, label = contigs), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = MK_test_interest[2,], aes(x = NI	 , y = 70, label = contigs), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = MK_test_interest[3,], aes(x = NI	 , y = 60, label = contigs), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = MK_test_interest[4,], aes(x = NI	 , y = 45, label = contigs), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = MK_test_interest[5,], aes(x = NI	 , y = 40,  label = contigs), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = MK_test_interest[6,], aes(x = NI	 , y = 40, label = contigs), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = MK_test_interest[7,], aes(x = NI	 , y = 40, label = contigs), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = MK_test_interest[8,], aes(x = NI	 , y = 40, label = contigs), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = MK_test_interest[9,], aes(x = NI	 , y = 40, label = contigs), size = 3, parse = T, col ="darkblue") + 
+  geom_text(data = MK_test_interest[10,], aes(x = NI , y = 40, label = contigs), size = 3, parse = T, col ="darkblue") + 
+  ylim(0, 75) + 
+  geom_vline(xintercept = 1, color = "darkblue", size = 0.6) +
+  ggtitle("Distribution of Neutrality Index ") + coord_flip()
+```
+```{r}
+MK_test_all2 %>% ggplot(aes(DoS)) + geom_histogram(bins = 70, fill = "darkred", col = "black") + ylab("Frequency")+ 
+  geom_vline(xintercept = MK_test_interest$DoS, color = "grey", linetype = "dashed", size = 0.6) + theme_classic() +
+  ylim(0, 40) + 
+  ggtitle("Distribution of Direction of Selection") + xlab("Direction of Selection") + coord_flip()
+```
+
+```{r}
+MK_test_all2 %>% ggplot(aes(DoS)) + geom_histogram(bins = 70, fill = "lightblue", col = "black") +
+  geom_vline(xintercept = MK_test_interest$DoS, color = "darkgrey", linetype = "dashed", size = 0.8) + theme_classic() +
+  geom_text(data = MK_test_interest[1,], aes(x = DoS	 , y = 25, label = contigs), size = 3, parse = T, col ="darkred") +
+  geom_text(data = MK_test_interest[2,], aes(x = DoS	 , y = 10, label = contigs), size = 3, parse = T, col ="darkred") +
+  geom_text(data = MK_test_interest[3,], aes(x = DoS	 , y = 50, label = contigs), size = 3, parse = T, col ="darkred") +
+  geom_text(data = MK_test_interest[4,], aes(x = DoS	 , y = 55, label = contigs), size = 3, parse = T, col ="darkred") +
+  geom_text(data = MK_test_interest[5,], aes(x = DoS	 , y = 45, label = contigs), size = 3, parse = T, col ="darkred") +
+  geom_text(data = MK_test_interest[6,], aes(x = DoS	 , y = 25, label = contigs), size = 3, parse = T, col ="darkred") +
+  geom_text(data = MK_test_interest[7,], aes(x = DoS	 , y = 20, label = contigs), size = 3, parse = T, col ="darkred") +
+  geom_text(data = MK_test_interest[8,], aes(x = DoS	 , y = 30, label = contigs), size = 3, parse = T, col ="darkred") +
+  geom_text(data = MK_test_interest[9,], aes(x = DoS	 , y = 40, label = contigs), size = 3, parse = T, col ="darkred") + 
+  geom_text(data = MK_test_interest[10,], aes(x = DoS , y = 20,  label = contigs), size = 3, parse = T, col ="darkred") + 
+  ylim(0, 60) + 
+  ggtitle("Distribution of Direction of Selection") + xlab("Direction of Selection") 
+```
+```{r}
+MK_test_all2
+```
+
+# Add DoS and NI info to the contig_of-interest data
+```{r}
+contigs_of_interest_results <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/contigs_of_interest_results.rds")
+#contigs_of_interest_results <- contigs_of_interest_results[-c(8, 9)]
+
+```
+
+```{r}
+contigs_of_interest_results %>% mutate(DoS = MK_test_interest$DoS)
+```
+
+```{r}
+#write_rds(contigs_of_interest_results, "C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/contigs_of_interest_results.rds")
+```
+
+
+

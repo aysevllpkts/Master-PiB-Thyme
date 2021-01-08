@@ -1,0 +1,199 @@
+---
+title: "S7_Fst"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(tidyverse)
+```
+
+# shared poly data - Fst
+```{r}
+shared_poly <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_shared_poly.5.rds")
+merged_poly <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_merged_polymorphisms.5.rds")
+all_contigs_syn_nonsyn_INFO <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/syn_nonsyn_data.rds")
+shared_poly
+```
+
+```{r}
+contig_of_interest_results <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/contigs_of_interest_results.rds")
+contig_of_interest_results
+```
+
+# Calculate Fst
+```{r}
+K = 2 # number of subpopulations
+n1 = 248 # number of t.vulgaris samples
+n2 = 3 # number of t.embergeri samples
+Fst <- c(0)
+contig = c(0)
+snp = c(0)
+
+for (i in 1:nrow(shared_poly)) {
+  pop1_cal <- (((shared_poly$freq_ref.t.vulgaris[i] - (shared_poly$freq_ref.t.vulgaris[i] + shared_poly$freq_ref.t.embergeri[i])/2)**2)/(K-1))*(n1/(n1+n2))
+  pop2_cal <- (((shared_poly$freq_ref.t.embergeri[i] - (shared_poly$freq_ref.t.vulgaris[i] + shared_poly$freq_ref.t.embergeri[i])/2)**2)/(K-1))*(n2/(n1+n2))
+  Fst[i] = (pop1_cal + pop2_cal) / (((shared_poly$freq_ref.t.vulgaris[i] + shared_poly$freq_ref.t.embergeri[i])/2)*((shared_poly$freq_alt.t.vulgaris[i] + shared_poly$freq_alt.t.embergeri[i])/2))
+  snp[i] <- shared_poly$snp[i]
+  contig[i] <- shared_poly$contig.t.vulgaris[i]
+}
+
+Fst_results <- tibble(snp = snp,
+                      contig = contig,
+                      Fst = Fst)
+```
+
+```{r}
+Fst_results %>% arrange(-Fst) # highest Fst values
+Fst_results %>% summary()
+```
+
+```{r}
+Fst_perContig <- Fst_results %>% group_by(contig) %>% summarise(Fst = mean(Fst))
+Fst_perContig %>% arrange(-Fst) # highest Fst values
+
+Fst_of_interest <- Fst_perContig %>% filter(contig %in% contig_of_interest_results$contig)
+Fst_of_interest %>% arrange(-Fst) # highest Fst values
+```
+
+# Calculate Gst
+```{r}
+HT <- c(0)
+Hs <- c(0)
+Gst <- c(0)
+for (i in 1:length(unique(shared_poly$contig.t.vulgaris))) {
+  df <- shared_poly %>% filter(contig.t.vulgaris == unique(shared_poly$contig.t.vulgaris)[i])
+  
+  for (j in 1:nrow(df)) {
+  HT[j] <- 2*((df$freq_ref.t.vulgaris[j] + df$freq_ref.t.embergeri[j])/2)*((df$freq_alt.t.vulgaris[j] + df$freq_alt.t.embergeri[j])/2)
+  Hs[j] <- ((2*df$freq_ref.t.vulgaris[j]*df$freq_alt.t.vulgaris[j])+(2*df$freq_ref.t.embergeri[j]*df$freq_alt.t.embergeri[j]))/2
+ }
+  Gst[i] <- (mean(HT)-mean(Hs))/mean(HT)
+}
+
+head(Gst)
+```
+
+```{r}
+Gst_per_contig <- tibble(contig = unique(shared_poly$contig.t.embergeri), Gst = Gst)
+Gst_of_interest <- Gst_per_contig %>%  filter(contig == "FC:Contig71000" | contig == "FC:Contig12377" | contig == "FC:KR920616.1"  | contig == "FC:JX946357.1"  |contig == "FC:KM272331.1"  |contig == "FC:KM272332.1"  | contig == "FC:JX946358.1" |contig == "AT:Contig4190" |contig == "AT:Contig660"|contig == "FC:KC461937.1" )
+```
+
+```{r}
+Gst_of_interest
+Fst_of_interest
+```
+
+# Save Fst and Gst values of contigs of interest
+```{r}
+#contig_of_interest_results <- contig_of_interest_results %>% mutate(Fst = Fst_of_interest$Fst)
+#contig_of_interest_results <- contig_of_interest_results %>% mutate(Gst = Gst_of_interest$Gst)
+
+#write_rds(contig_of_interest_results, "C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/contigs_of_interest_results.rds")
+```
+
+# Polymorphisms based on contigs 0.5
+```{r}
+# total polymorphisms
+n.poly.5 <- merged_poly %>% group_by(contig) %>%  tally() 
+head(n.poly.5) # number of polymorphic site per contig
+dim(n.poly.5) # there are 411 contigs (last row indicates total), totally 7855 poly. sites
+
+# shared polymorphisms
+n.shared.poly.5 <- shared_poly %>% group_by(contig.t.vulgaris) %>%  tally() # 380
+names(n.shared.poly.5)[1] = "contig"
+head(n.shared.poly.5)  # number of polymorphic site per contig
+dim(n.shared.poly.5) # there are 380 contigs shared between t.vulgaris and t.embergeri and totaly 4486 poly sites.
+#sum(n.shared.poly.5$n)
+
+# create dataframe contain info about nshared, ntotal and ratio of it
+df_poly.contig.info.5 <- full_join(n.poly.5, n.shared.poly.5, by = "contig", suffix = c("total", ".shared"))
+df_poly.contig.info.5 <- df_poly.contig.info.5[c(-412),]
+df_poly.contig.info.5[is.na(df_poly.contig.info.5)] <- 0
+
+# I calculated the probability of shared poly. based on dividing number of shared snps each contig to the total poly sites per contig which I took from merged_polymorphisms data
+df_poly.contig.info.5 <- df_poly.contig.info.5 %>% mutate(prob.shared = n.shared/ntotal)
+
+head(df_poly.contig.info.5) 
+df_poly.contig.info.5 %>% summary()
+```
+```{r}
+df <- df_poly.contig.info.5 %>%  filter(contig == "FC:Contig71000" | contig == "FC:Contig12377" | contig == "FC:KR920616.1"  | contig == "FC:JX946357.1"  |contig == "FC:KM272331.1"  | contig == "FC:JX946358.1" |contig == "AT:Contig4190" |contig == "AT:Contig660"|contig == "FC:KC461937.1" | contig == "FC:KM272332.1" )
+
+df
+```
+
+```{r}
+Fst_of_interest <- Fst_of_interest %>% arrange(-Fst)
+Fst_of_interest
+```
+
+```{r}
+df <- df %>% arrange(-prob.shared)
+df
+```
+
+# PLOTS
+
+# plot for Fst
+```{r}
+Fst_perContig %>% ggplot(aes(Fst)) + geom_histogram(bins = 50, col = "black", fill = "darkred") +
+  ggtitle("Distribution of mean Fst value per Contig") + ylab("Frequency") + 
+  geom_vline(xintercept = Fst_of_interest$Fst, color = "grey", linetype = "dashed", size = 0.6) + theme_classic() +
+  geom_text(data = Fst_of_interest[1,], aes(x = Fst	 , y = 70, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = Fst_of_interest[2,], aes(x = Fst	 , y = 70, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = Fst_of_interest[3,], aes(x = Fst	 , y = 100, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = Fst_of_interest[4,], aes(x = Fst	 , y = 90, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = Fst_of_interest[5,], aes(x = Fst	 , y = 80,  label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = Fst_of_interest[6,], aes(x = Fst	 , y = 70, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = Fst_of_interest[7,], aes(x = Fst	 , y = 60, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = Fst_of_interest[8,], aes(x = Fst	 , y = 50, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = Fst_of_interest[9,], aes(x = Fst	 , y = 40, label = contig), size = 3, parse = T, col ="darkblue") + 
+  geom_text(data = Fst_of_interest[10,], aes(x = Fst , y = 30, label = contig), size = 3, parse = T, col ="darkblue") +
+  coord_flip()
+```
+
+# plot for prob of shared polymorphisms
+```{r}
+df_poly.contig.info.5
+df_poly.contig.info.5 %>% 
+  ggplot(aes(prob.shared)) + geom_histogram(bins = 50, fill = "darkred", col = "black") + 
+  ggtitle("Frequency of shared polymorphisms per contig") + ylab("Frequency") + 
+  geom_vline(xintercept = df$prob.shared, color = "grey", linetype = "dashed", size = 0.6) +
+  theme_classic() +
+  geom_text(data = df[1,], aes(x = prob.shared	 , y = 25, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = df[2,], aes(x = prob.shared	 , y = 25, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = df[3,], aes(x = prob.shared	 , y = 25, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = df[4,], aes(x = prob.shared	 , y = 30, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = df[5,], aes(x = prob.shared	 , y = 30, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = df[6,], aes(x = prob.shared	 , y = 35, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = df[7,], aes(x = prob.shared	 , y = 30, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = df[8,], aes(x = prob.shared	 , y = 35, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = df[9,], aes(x = prob.shared	 , y = 30, label = contig), size = 3, parse = T, col ="darkblue") + 
+  geom_text(data = df[10,], aes(x = prob.shared	 , y = 35, label = contig), size = 3, parse = T, col ="darkblue") +
+  ylim(0, 40) + coord_flip()
+```
+
+# plot for Gst
+```{r}
+Gst_per_contig %>% ggplot(aes(Gst)) + 
+  geom_histogram(binwidth = 0.007, fill = "lightblue", col = "black") +
+  ggtitle("Gst values per contig for shared polymorphisms") + 
+  geom_vline(xintercept = Gst_of_interest$Gst, color = "darkgrey", linetype = "dashed", size = 0.8) + theme_classic() +
+  geom_text(data = Gst_of_interest[1,], aes(x = Gst	 , y = 63, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = Gst_of_interest[2,], aes(x = Gst	 , y = 70, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = Gst_of_interest[3,], aes(x = Gst	 , y = 60, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = Gst_of_interest[4,], aes(x = Gst	 , y = 45, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = Gst_of_interest[5,], aes(x = Gst	 , y = 5,  label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = Gst_of_interest[6,], aes(x = Gst	 , y = 30, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = Gst_of_interest[7,], aes(x = Gst	 , y = 20, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = Gst_of_interest[8,], aes(x = Gst	 , y = 25, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = Gst_of_interest[9,], aes(x = Gst	 , y = 18, label = contig), size = 3, parse = T, col ="darkred") + 
+  geom_text(data = Gst_of_interest[10,], aes(x = Gst , y = 40, label = contig), size = 3, parse = T, col ="darkred") + 
+  geom_vline(xintercept = 0.25, color = "blue") +
+  ylim(0, 75)
+  
+```
+
+

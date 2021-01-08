@@ -1,0 +1,136 @@
+---
+title: "all_contigs_syn_nonsyn"
+output: html_document
+---
+
+# Prepare DATA for BioPython to find nonsynonymous - synonymous variants
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+merged_poly <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/df_merged_polymorphisms.5.rds")
+fixed_allele = readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/df_fixed_allele.t.vulgaris.5.rds")
+snp_file <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/df_snp_filtered.t.vulgaris.5.rds")
+```
+
+```{r}
+merged_poly = merged_poly %>%  filter(!is.na(contig))
+```
+
+```{r}
+length(unique(merged_poly$contig))
+length(unique(fixed_allele$contig))
+```
+
+```{r}
+# Rename column where names 
+names(fixed_allele)[names(fixed_allele) == "alt.t.vulgaris"] <- "alt"
+names(fixed_allele)[names(fixed_allele) == "ref.t.vulgaris"] <- "ref"
+```
+
+# add fixed-poly info the dataset
+```{r}
+snp_file <- snp_file %>% mutate(fixed_poly = ifelse(snp %in% merged_poly$snp, "poly", ifelse(snp %in% fixed_allele$snp, "fixed", "-")))
+```
+
+```{r}
+snp_file <- snp_file %>% filter(fixed_poly == "fixed" | fixed_poly == "poly")
+```
+
+```{r}
+contigs = unique(snp_file$contig)
+```
+
+```{r}
+alt_list = c(0)
+pos_list = c(0)
+for (i in 1:length(unique(snp_file$contig))) {
+  pos_list[i] = list((snp_file %>% filter(contig == contigs[i]) %>% arrange(pos))$pos)
+  alt_list[i] = list((snp_file %>% filter(contig == contigs[i]) %>% arrange(pos))$alt)
+  
+}
+```
+
+```{r}
+contigs[1:3]
+pos_list[1:3]
+alt_list[1:3]
+```
+
+```{r}
+pos_data <- plyr::ldply(pos_list, rbind)
+alt_data <- plyr::ldply(alt_list, rbind)
+```
+
+```{r}
+##pos_data
+#write.csv(pos_data, "C:/Users/Aysevil/Dropbox/Aarhus #Lectures/Project/cluster_files/pos_data_allcontigs.csv",
+#          row.names = FALSE, col.names = FALSE)
+##alt_data
+#write.csv(alt_data, "C:/Users/Aysevil/Dropbox/Aarhus #Lectures/Project/cluster_files/alt_data_all_contigs.csv",
+#          row.names = FALSE, col.names = FALSE)
+```
+
+```{r}
+contigs_names = read.delim("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/contig_names.txt", header = FALSE)
+```
+
+```{r}
+contigs_names %>% filter(!(V1 %in% unique(snp_file$contig))) #discarded contigs from merged_poly
+```
+
+# upload csv file
+```{r}
+nonsyn_INFO <- read_csv("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/all_contigs_nonsynINFODATA.csv")
+
+nonsyn_INFO2 <- read_csv("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/all_contigs_nonsynINFODATA_row.csv")
+```
+```{r}
+newcolnames <- unique(snp_file$contig)
+colnames(nonsyn_INFO) <- newcolnames
+```
+
+```{r}
+snp_file
+```
+
+
+```{r}
+not.LoL <- as.list(nonsyn_INFO)
+nonsyn_lol <- lapply(not.LoL, function(x) x[!is.na(x)])
+```
+
+```{r}
+nonsyn_lol[[2]]
+
+```
+
+```{r}
+unique(snp_file$contig)[2]
+```
+```{r}
+new_snp_file = c(0)
+for (i in 1:length(unique(snp_file$contig))) {
+  new_snp_file[i] <- 
+    list(ifelse((snp_file %>% filter(contig == unique(snp_file$contig)[i]))$pos %in% nonsyn_lol[[i]], "nonsynonymous", "synonymous"))
+}
+
+```
+
+```{r}
+syn_nonsyn <- unlist(new_snp_file, recursive = FALSE)
+head(syn_nonsyn)
+```
+```{r}
+all_contigs <- snp_file %>% mutate(syn_nonsyn = syn_nonsyn)
+all_contigs
+```
+
+
+```{r}
+#write_rds(snp_file, "C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/snp_file.rds")
+#write_rds(nonsyn_INFO, "C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/nonsyn_INFO.rds")
+#write_rds(all_contigs, "C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/syn_nonsyn_data.rds")
+```

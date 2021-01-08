@@ -1,0 +1,39 @@
+---
+title: "S5_contig_of_interest"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+df_contig_length <- read.csv("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/contig lengths/contigs_length.csv")
+
+# add missing contig
+df_contig_length <- df_contig_length %>% add_row(names = "FC:JX946357.1", contig_length = 1976)
+
+head(df_contig_length)
+```
+# create rds file for contigs of interest
+```{r}
+contigs_of_interest <- tibble(contig = c("FC:Contig71000",
+"FC:Contig12377",
+"FC:KR920616.1",
+"FC:JX946357.1",
+"FC:KM272331.1",
+"FC:KM272332.1",
+"FC:JX946358.1" , 
+"AT:Contig4190" ,
+"AT:Contig660",
+"FC:KC461937.1"), length = c(1800, 1482, 1626, 1976,1500,1500,1961,3237,1689,1794))
+(contigs_of_interest)
+```
+# save file
+```{r}
+#write_rds(contigs_of_interest,"C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/contig_of_interest.rds")
+#write_rds(df_contig_length,"C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/df_contigs_length.rds")
+```
+

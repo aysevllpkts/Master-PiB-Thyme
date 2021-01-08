@@ -1,0 +1,198 @@
+---
+title: "S1_finding_polymorphisms"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(tidyverse)
+```
+
+# loading data
+```{r}
+theme_set(theme_classic())
+
+#☺ filtered snp data
+df_snp_filtered.t.vulgaris.5 <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_snp_filtered.t.vulgaris.5.rds")
+df_snp_filtered.t.embergeri.5 <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_snp_filtered.t.embergeri.5.rds")
+
+# filtered genotype data
+df_genotype_filtered.t.vulgaris.5 <- read_rds("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_genotype_filtered.t.vulgaris.5")
+df_genotype_filtered.t.embergeri.5   <- read_rds("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_genotype_filtered.t.embergeri.5")
+
+```
+
+# FOR SHARED POLYMORPHISM
+
+If I remove snps that dont have heterozygotes and homozygotes alternative allele
+
+```{r}
+# polymorphic sites in T.vulgaris
+df_poly_t.vulgaris.5 <- df_snp_filtered.t.vulgaris.5 %>% filter((nb0 != 0 & nb1 != 0) | (nb1 != 0 & nb2 != 0))
+
+# polymorphic sites in T.embergeri
+df_poly_t.embergeri.5 <- df_snp_filtered.t.embergeri.5 %>% filter((nb0 != 0 & nb1 != 0) | (nb1 != 0 & nb2 != 0)) 
+
+head(df_poly_t.vulgaris.5)
+head(df_poly_t.embergeri.5)
+
+# number of polymorphic sites
+dim(df_poly_t.vulgaris.5)
+dim(df_poly_t.embergeri.5)
+
+# ratio of polymorphisms 
+# for t.vulgaris
+dim(df_poly_t.vulgaris.5)[1]/dim(df_snp_filtered.t.vulgaris.5)[1] # ~0.75
+# for t.embergeri
+dim(df_poly_t.embergeri.5)[1]/dim(df_snp_filtered.t.embergeri.5)[1] # ~0.23
+```
+
+# shared polymorphisms data
+```{r}
+# cutoff 0.5
+df_shared_poly.5 <- merge(df_poly_t.vulgaris.5, df_poly_t.embergeri.5,by = "snp",suffixes = c(".t.vulgaris", ".t.embergeri"))
+
+dim(df_shared_poly.5) # 4486 shared poly.
+```
+
+```{r}
+# for shared polymorphisms, we dont know yet which one is derived. 
+
+# alt freq distributions
+df_shared_poly.5 %>% ggplot(aes(freq_alt.t.vulgaris)) + geom_histogram(bins = 50)
+
+df_shared_poly.5 %>% ggplot(aes(freq_alt.t.embergeri)) + geom_histogram()
+```
+
+# poly. only found in one species
+```{r}
+# poly.only found in t.vulgaris
+df_only_poly_t.vulgaris.5 <- df_poly_t.vulgaris.5 %>% filter(!(snp %in% df_shared_poly.5$snp))
+
+# poly. only found in t.embergeri
+df_only_poly_t.embergeri.5 <- df_poly_t.embergeri.5 %>% filter(!(snp %in% df_shared_poly.5$snp))
+
+dim(df_only_poly_t.vulgaris.5)
+dim(df_only_poly_t.embergeri.5)
+```
+
+# combine polymorphisms into one dataset.
+```{r}
+# combine two only poly data
+df_merged_polymorphisms.5 <- full_join(df_poly_t.vulgaris.5, df_poly_t.embergeri.5[c(1,2,3,4,5,6,11,12)], by = "snp", suffix = c(".t.vulgaris", ".t.embergeri"))
+
+# unknown snps for each species
+df_merged_polymorphisms.5 %>%  filter(is.na(df_merged_polymorphisms.5$good.t.vulgaris))
+df_merged_polymorphisms.5 %>%  filter(is.na(df_merged_polymorphisms.5$good.t.embergeri))
+dim(df_merged_polymorphisms.5) # 35603 (only t.vulgaris) + 4486 (common) + 7855 (t.embergeri) CHECK!
+
+# Adding additional information to data (about shared or only)
+df_merged_polymorphisms.5 <- df_merged_polymorphisms.5 %>% mutate(poly_INFO = ifelse(df_merged_polymorphisms.5$snp %in% df_shared_poly.5$snp, "shared", ifelse(df_merged_polymorphisms.5$snp %in% df_genotype_filtered.t.vulgaris.5$snp, "t.vulgaris", "t.embergeri")))
+
+head(df_merged_polymorphisms.5)
+```
+
+# ancestral - derived alleles
+compare only polymorphic data for t.vulgaris with t.embergeri genotypes
+```{r}
+# cutoff 0.5
+df_genotypes_t.embergeri.anc_der.5 <- df_genotype_filtered.t.embergeri.5 %>% 
+  filter(snp %in% df_only_poly_t.vulgaris.5$snp)
+
+genotype_matrix.t.embergeri_anc_der.5 <- spread(df_genotypes_t.embergeri.anc_der.5, key = snp, value = genotype)
+#head(genotype_matrix.t.embergeri_anc_der.5[,1:5])
+
+dim(genotype_matrix.t.embergeri_anc_der.5)  # we dont have information for 98 snps (which is unique for t.vulgaris)
+dim(df_only_poly_t.vulgaris.5)
+```
+
+# Finding homozygous sites in T.embergeri
+I put symbol as comment because the running time of the chunk is long.
+```{r}
+## find homozoygote reference and alternative sites in t.embergeri
+#only_2s.5 <- genotype_matrix.t.embergeri_anc_der.5[,2:ncol(genotype_matrix.t.embergeri_anc_der.5)] %>% select_if(function(x) any(x != 0))
+#head(only_2s.5) # there are 2248 sites
+#only_0s.5 <- setdiff(names(genotype_matrix.t.embergeri_anc_der.5[,2:ncol(genotype_matrix.t.embergeri_anc_der.5)]), names(only_2s.5))
+
+## Check the dimensions of the data for correctness
+#length(only_0s.5)
+#dim(only_2s.5)[2]
+#dim(genotype_matrix.t.embergeri_anc_der.5)
+#length(only_0s.5) + dim(only_2s.5)[2] + 1 == dim(genotype_matrix.t.embergeri_anc_der.5)[2] # check!
+
+# there are 2248 homozygote alternative in t.embergeri
+# there are 33256 homozygote reference
+```
+
+# Save files
+```{r}
+## homozygotes sites of the t.embergeri
+#write_rds(only_2s.5, "only_2s_geno_of_T.embergeri.5.rds") 
+#write_rds(only_0s.5, "only_0s_geno_of_T.embergeri.5.rds")
+```
+
+# Load the homozygous geno of T.embergeri
+```{r}
+only_2s.5 <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/only_2s_geno_of_T.embergeri.5.rds")
+only_0s.5 <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/only_0s_geno_of_T.embergeri.5.rds")
+```
+
+# Adding ancestral information to only.poly data of T.vulgaris
+```{r}
+df_only_poly_t.vulgaris.5 <-df_only_poly_t.vulgaris.5 %>% 
+  mutate(ancestral_derived = ifelse(snp %in% names(only_2s.5), "Ref is derived/alt is ancestral", ifelse(snp %in% only_0s.5, "Ref is ancestral/alt is derived", "Unknown"))) 
+
+df_only_poly_t.vulgaris.5 %>% count(ancestral_derived == "Unknown")
+df_only_poly_t.vulgaris.5 %>% count(ancestral_derived == "Ref is derived/alt is ancestral")
+df_only_poly_t.vulgaris.5 %>% count(ancestral_derived == "Ref is ancestral/alt is derived")
+
+dim(df_only_poly_t.vulgaris.5)[1] == 99 + 2248 + 33256 #check!
+
+# 99 unknown, 2248 ref is derived, 33256 ref is ancestral
+
+```
+
+# adding ancestral/derived information to total polymorphism data which contains information about both t.vulgaris and t.embergeri
+```{r}
+df_merged_polymorphisms.5 <- df_merged_polymorphisms.5 %>% mutate(ancestral_derived = ifelse(snp %in% df_only_poly_t.vulgaris.5$snp, df_only_poly_t.vulgaris.5$ancestral_derived, "-"))
+
+dim(df_merged_polymorphisms.5 %>% filter(ancestral_derived == "-"))[1] == 4486 + 7855 # check!
+```
+
+# ancestral freq vs. derived frequency into the merged_polymorphism and only_poly.t.vulgaris data
+```{r}
+df_merged_polymorphisms.5 <- df_merged_polymorphisms.5 %>% 
+  mutate(ancestral_freq.t.vulgaris = ifelse(ancestral_derived == "Ref is ancestral/alt is derived", freq_ref.t.vulgaris, ifelse(ancestral_derived == "Ref is derived/alt is ancestral", freq_alt.t.vulgaris, freq_ref.t.vulgaris))) %>% 
+  mutate(derived_freq.t.vulgaris = ifelse(ancestral_derived == "Ref is ancestral/alt is derived", freq_alt.t.vulgaris, ifelse(ancestral_derived == "Ref is derived/alt is ancestral", freq_ref.t.vulgaris, freq_alt.t.vulgaris)))
+
+df_only_poly_t.vulgaris.5 <- df_only_poly_t.vulgaris.5 %>% 
+  mutate(ancestral_freq = ifelse(ancestral_derived == "Ref is ancestral/alt is derived", freq_ref, ifelse(ancestral_derived == "Ref is derived/alt is ancestral", freq_alt, freq_ref))) %>% 
+  mutate(derived_freq = ifelse(ancestral_derived == "Ref is ancestral/alt is derived", freq_alt, ifelse(ancestral_derived == "Ref is derived/alt is ancestral", freq_ref, freq_alt)))
+
+head(df_merged_polymorphisms.5)
+```
+
+# Save created data
+```{r}
+# only poly.
+#write_rds(df_only_poly_t.vulgaris.5, "C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_only_poly_t.vulgaris.5.rds")
+#write_rds(df_only_poly_t.embergeri.5, "C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_only_poly_t.embergeri.5.rds")
+
+# merged poly.
+#write_rds(df_merged_polymorphisms.5, "C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_merged_polymorphisms.5.rds")
+
+# save shared polymorphism files
+#write_rds(df_shared_poly.5, "C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_shared_poly.5.rds")
+```
+
+
+
+
+
+
+
+
+
+
+

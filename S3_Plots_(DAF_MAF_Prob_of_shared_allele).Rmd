@@ -1,0 +1,124 @@
+---
+title: "S3_Plots_(DAF_MAF_Prob_of_shared_allele)"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+df_only_poly_t.vulgaris.5 <- read_rds("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_only_poly_t.vulgaris.5.rds")
+
+df_merged_polymorphisms.5 <- read_rds("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_merged_polymorphisms.5.rds")
+
+df_shared_poly.5 <- read_rds("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_shared_poly.5.rds")
+```
+
+# plot of derived allele frequency of t.vulgaris 0.5
+```{r}
+df_only_poly_t.vulgaris.5 %>% ggplot(aes(derived_freq)) + geom_histogram(binwidth = 0.02, fill = "darkred", col = "black") + ggtitle("Derived Allele Frequency Distribution") + ylab("Number of segregating sites") + xlab("DAF")
+
+df_only_poly_t.vulgaris.5 %>% ggplot(aes(ifelse(ancestral_derived == "Ref is ancestral/alt is derived", freq_alt, freq_ref))) + geom_histogram(binwidth = 0.02, fill = "darkred", col = "black") + ggtitle("Derived Allele Frequency Distribution") + ylab("Number of segregating sites") + xlab("DAF")
+```
+
+# Polymorphisms based on contigs 0.5
+```{r}
+# total polymorphisms
+n.poly.5 <- df_merged_polymorphisms.5 %>% group_by(contig) %>%  tally() 
+head(n.poly.5) # number of polymorphic site per contig
+dim(n.poly.5) # there are 411 contigs (last row indicates total), totally 7855 poly. sites
+
+# shared polymorphisms
+n.shared.poly.5 <- df_shared_poly.5 %>% group_by(contig.t.vulgaris) %>%  tally() # 380
+names(n.shared.poly.5)[1] = "contig"
+head(n.shared.poly.5)  # number of polymorphic site per contig
+dim(n.shared.poly.5) # there are 380 contigs shared between t.vulgaris and t.embergeri and totaly 4486 poly sites.
+#sum(n.shared.poly.5$n)
+
+# create dataframe contain info about nshared, ntotal and ratio of it
+df_poly.contig.info.5 <- full_join(n.poly.5, n.shared.poly.5, by = "contig", suffix = c("total", ".shared"))
+df_poly.contig.info.5 <- df_poly.contig.info.5[c(-412),]
+df_poly.contig.info.5[is.na(df_poly.contig.info.5)] <- 0
+
+# I calculated the probability of shared poly. based on dividing number of shared snps each contig to the total poly sites per contig which I took from merged_polymorphisms data
+df_poly.contig.info.5 <- df_poly.contig.info.5 %>% mutate(prob.shared = n.shared/ntotal)
+
+head(df_poly.contig.info.5) 
+
+# PLOTS
+df_poly.contig.info.5 %>% ggplot(aes(prob.shared)) + geom_histogram(bins = 70, fill = "darkred", col = "black") + ggtitle("Frequency of shared polymorphisms per contig")
+
+
+
+```
+
+# Minor allele frequency distribuiton for shared polymorphisms
+```{r}
+df_shared_poly.5 %>%  ggplot(aes(ifelse(freq_ref.t.vulgaris < freq_alt.t.vulgaris, freq_ref.t.vulgaris, freq_alt.t.vulgaris))) + geom_histogram(binwidth = 0.005, col = "black", fill = "darkred") + xlab("MAF") + ylab("distribution") + ggtitle("Minor Allele Frequency Distribution")
+```
+
+# high frequency distribution only for vulgaris polymorphisms
+```{r}
+# number of high fre snps (>0.5) per contig
+n_high_freq_poly <- df_only_poly_t.vulgaris.5 %>% filter(derived_freq >= 0.5) %>% group_by(contig) %>% tally()
+n_high_freq_poly
+n_high_freq_poly %>% ggplot(aes(n)) + geom_histogram(bins = 50, fill = "darkred", col = "black") + xlab("Number of high frequency of polymorphic sites") + ylab("Frequency") + ggtitle("High Frequency Distribution for only T.vulgaris polymorphisms")
+
+```
+
+```{r}
+df_snp_filtered.t.vulgaris.5 <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_snp_filtered.t.vulgaris.5.rds")
+df_all_poly.5 <- read_rds("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_merged_polymorphisms.5.rds")
+df_all_poly.5
+```
+
+
+```{r}
+contigs_of_interest <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/contig_of_interest.rds")
+contigs_of_interest
+```
+
+```{r}
+# high derived allele frequency data (freq > 0.5)
+high_freq_derived_allele_t.vulgaris <- df_all_poly.5[order(-df_all_poly.5$derived_freq.t.vulgaris),][1:2269,]
+high_freq_derived_allele_t.vulgaris
+#saveRDS(high_freq_derived_allele_t.vulgaris, "C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/high_freq_derived_allele_t.vulgaris.rds")
+
+# number of times that per contigs have high freq allele
+count <- high_freq_derived_allele_t.vulgaris %>% group_by(contig) %>% tally() %>%  arrange(-n)
+
+# number of high freq allele for contig of interests
+high_freq_derived_allele_contig_of_interest <- high_freq_derived_allele_t.vulgaris %>% filter(contig %in% contigs_of_interest$contig) %>% arrange(contig)
+high_freq_derived_allele_contig_of_interest
+count_of_contig_of_interests <- count %>% filter(contig %in% contigs_of_interest$contig)
+count_of_contig_of_interests
+
+```
+
+```{r}
+
+#plot
+count %>% 
+  ggplot(aes(n)) + 
+  geom_histogram(bins = 50, col = "black", fill = "lightblue") + 
+  ggtitle("Distribution of number of high frequency derived allele for the contigs") + 
+  geom_vline(xintercept = count_of_contig_of_interests$n, color = "darkgrey", linetype = "dashed", size = 0.8) +
+  geom_text(data = count_of_contig_of_interests[1,], aes(x = n , y = 13, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = count_of_contig_of_interests[2,], aes(x = n , y = 11, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = count_of_contig_of_interests[3,], aes(x = n , y = 20, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = count_of_contig_of_interests[4,], aes(x = n , y = 16, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = count_of_contig_of_interests[5,], aes(x = n , y = 22, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = count_of_contig_of_interests[6,], aes(x = n , y = 28, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = count_of_contig_of_interests[7,], aes(x = n , y = 40, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = count_of_contig_of_interests[8,], aes(x = n , y = 55, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = count_of_contig_of_interests[9,], aes(x = n , y = 48, label = contig), size = 3, parse = T, col ="darkred") + 
+  geom_text(data = count_of_contig_of_interests[10,], aes(x = n, y = 52, label = contig), size = 3, parse = T, col ="darkred") 
+
+
+
+```
+
+

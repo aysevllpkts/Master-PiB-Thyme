@@ -1,0 +1,366 @@
+---
+title: "S6_tajimaD_Htest"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+df_only_poly_t.vulgaris.5 <- read_rds("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_only_poly_t.vulgaris.5.rds")
+dim(df_only_poly_t.vulgaris.5)
+```
+
+# Example from books for tajimaD and H statistics to verify the correctness of the code
+```{r}
+#example
+n = 10
+breaks = c(1,2,3,4,5,6,7,8,9)
+counts = c(4,1,2,1,0,0,0,1,0)
+
+i=seq(from=1, to=n-1, by=1)
+theta.w <- sum(counts)/sum(1/i)
+theta.w
+
+summing = c(0)
+for (i in 1:n-1) {
+  summing[i] <- (breaks[i]**2) * counts[i]
+}
+theta.h <- sum(summing)/((n*(n-1))/2)
+theta.h
+
+sum_pi = c(0)
+for (i in 1:n-1) {
+  sum_pi[i] <- breaks[i]*(n-breaks[i])*counts[i]
+}
+theta.pi <- sum(sum_pi)/((n*(n-1))/2)
+theta.pi
+```
+
+# Theta statistics conting by contig for df_only_poly_t.vulgaris
+
+# information about contig length for standardization
+Q = 4.Ne.u.L
+```{r}
+df_contig_length <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/df_contigs_length.rds")
+# add missing contig
+
+head(df_contig_length)
+
+#length(unique(df_contig_length$names)) # 435 contigs
+#length(unique(df_only_poly_t.vulgaris.5$contig)) #411 contigs
+```
+
+
+```{r}
+n = 2*248
+possible.counts = seq(1, n, by=1)
+theta.w = c(0)
+theta.h = c(0)
+theta.pi = c(0)
+tajimaD = c(0)
+H.test = c(0)
+sum_counts = c(0)
+
+variance.d <- function(n,S) {
+    a1=sum(1/(seq(from=1, to=(n-1), by=1)))
+    a2=sum(1/((seq(from=1, to=(n-1), by=1))**2))
+    b1=(n+1)/(3*(n-1))
+    b2=(2*((n**2)+n+3))/((9*n)*(n-1))
+    c1=b1 - (1/a1)
+    c2=b2-((n+2)/(a1*n)) + (a2/(a1**2))
+    e1=c1/a1
+    e2=c2/((a1**2)+a2)
+    var=(e1*S) + (e2*S*(S-1))
+    return(var)
+}
+```
+
+# Calculation of H test and TajimaD using derived state
+# Calculate statistics per contig
+```{r}
+for (i in 1:length(unique(df_only_poly_t.vulgaris.5$contig))) {
+  #print(i)
+  df <- df_only_poly_t.vulgaris.5 %>% filter(contig == unique(df_only_poly_t.vulgaris.5$contig)[i])
+  
+  
+  histinfo = hist(df$derived.counts, breaks=possible.counts)
+  breaks <- histinfo$breaks # number of chr. carry Si
+  counts <- histinfo$counts # Si
+  sum_counts[i] = counts
+  
+  a=seq(from=1, to=n-1, by=1)
+  theta.w[i] <- sum(counts)/sum(1/a)
+
+  sum_h = c(0)
+  for (j in 1:n-1) {
+    sum_h[j] <- (breaks[j]**2) * counts[j]
+  }
+  theta.h[i] <- sum(sum_h)/((n*(n-1))/2)
+
+  sum_pi = c(0)
+  for (z in 1:n-1) {
+    sum_pi[z] <- breaks[z]*(n-breaks[z])*counts[z]
+  }
+  theta.pi[i] <- sum(sum_pi)/((n*(n-1))/2)
+
+  tajimaD[i] <- (theta.pi[i] -    theta.w[i])/(sqrt(variance.d(n,sum(counts))))
+  H.test[i] <- theta.pi[i] - theta.h[i]
+
+}
+```
+# theta statistics data for df_only_poly.t.vulgaris both for unstandardized and standardized 
+```{r}
+df_theta_stats_per_contigs <- tibble(contig = unique(df_only_poly_t.vulgaris.5$contig),
+                                     theta.w = theta.w,
+                                     theta.pi = theta.pi,
+                                     theta.h = theta.h,
+                                     tajimaD = tajimaD,
+                                     H.test = H.test,
+                                     counts = sum_counts)
+
+# Adding contig length to data
+df_sorted_contig_length <- df_contig_length %>% arrange(names)
+dim(df_sorted_contig_length)
+dim(df_theta_stats_per_contigs)
+
+df_found_contigs <- df_sorted_contig_length %>% filter(names %in% df_theta_stats_per_contigs$contig)
+dim(df_found_contigs)
+
+df_theta_stats_per_contigs <- cbind(df_theta_stats_per_contigs, contig_length = df_found_contigs[,2])
+
+# Divide thetas to length of contigs
+df_theta_stats_per_contigs <- df_theta_stats_per_contigs %>% mutate(
+  st.theta.w = theta.w/contig_length,
+  st.theta.pi = theta.pi/contig_length,
+  st.theta.h = theta.h/contig_length)
+
+# Calculate again the tajimaD and H statistics
+df_theta_stats_per_contigs <- df_theta_stats_per_contigs %>% 
+  mutate(st.TajimaD = ((st.theta.pi - st.theta.w) / sqrt(variance.d(496, counts))),
+         st.H.test = st.theta.pi - st.theta.h)
+
+head(df_theta_stats_per_contigs)
+```
+# TajimaD and H statistics plots for both for unstd and std results.
+```{r}
+# TajimaD and H statistics plots for unstand. results
+df_theta_stats_per_contigs %>% ggplot(aes(tajimaD)) + geom_histogram(bins = 70, fill = "darkred", col = "black") + ggtitle("TajimaD Results / unstd.")
+df_theta_stats_per_contigs %>% ggplot(aes(H.test)) + geom_histogram(bins = 70, fill = "darkred", col = "black") + ggtitle("H Statistics Resuls/ unstd")
+
+# TajimaD and H statistics plots for stand. results
+df_theta_stats_per_contigs %>% ggplot(aes(st.TajimaD)) + geom_histogram(bins = 70, fill = "darkred", col = "black") + ggtitle("TajimaD Results / std.")
+df_theta_stats_per_contigs %>% ggplot(aes(st.H.test)) + geom_histogram(bins = 70, fill = "darkred", col = "black") + ggtitle("H statistics Results / std.")
+
+```
+
+# info for the H test plot
+```{r}
+list_of_contigs <- c("FC:Contig71000",
+"FC:Contig12377",
+"FC:KR920616.1",
+"FC:JX946357.1",
+"FC:KM272331.1",
+"FC:KM272332.1",
+"FC:JX946358.1" , 
+"AT:Contig4190" ,
+"AT:Contig660",
+"FC:KC461937.1")
+
+results.of.h.test.og.interest <- df_theta_stats_per_contigs %>%  filter(contig == "FC:Contig71000" | contig == "FC:Contig12377" | contig == "FC:KR920616.1"  | contig == "FC:JX946357.1" | contig == "FC:KM272331.1" |  contig == "FC:KM272332.1" | contig == "FC:JX946358.1" |contig == "AT:Contig4190" |contig == "AT:Contig660"|contig == "FC:KC461937.1" ) %>%  arrange(H.test, decreasing = T)
+results.of.h.test.og.interest
+df1 <- tibble(contig = "FC:Contig71000", H.test = 1.938042)
+df2 <- tibble(contig = "FC:KC461937.1", H.test = 0.286494)
+df3 <- tibble(contig = "FC:JX946358.1", H.test = 2.067058)
+df4 <- tibble(contig = "FC:JX946357.1", H.test = -1.915494)
+df5 <- tibble(contig = "FC:Contig12377", H.test = -2.685891)
+df6 <- tibble(contig = "AT:Contig4190", H.test = -17.939394)
+df7 <- tibble(contig = "FC:KM272331.1", H.test = 3.169094)
+df8 <- tibble(contig = "FC:KR920616.1", H.test = -1.252444)
+df9 <- tibble(contig = "AT:Contig660", H.test = 4.283610)
+df10<- tibble(contig = "FC:KM272332.1", H.test = 3.965477	)
+```
+```{r}
+results.of.h.test.og.interest %>% arrange(-tajimaD)
+```
+
+# H.test Results of only polymorphic sites of T.vulgaris
+```{r}
+df_theta_stats_per_contigs %>% 
+  ggplot(aes(H.test)) +
+  geom_histogram(bins = 70, col = "black", fill = "lightblue") + 
+  ggtitle("H.test Results of only polymorphic sites of T.vulgaris") + 
+  geom_vline(xintercept = results.of.h.test.og.interest$H.test, color = "darkgrey", linetype = "dashed", size = 0.8) + 
+  geom_text(data = df1, aes(x = 1.938042	 , y = 31, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = df2, aes(x = 0.286494	 , y = 70, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = df3, aes(x = 2.067058	 , y = 34, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = df4, aes(x = -1.915494	 , y = 29, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = df5, aes(x = -2.685891	 , y = 25, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = df6, aes(x = -17.939394	 , y = 20, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = df7, aes(x = 3.169094	 , y = 25, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = df8, aes(x = -1.252444	 , y = 39, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = df9, aes(x = 4.283610	 , y =10, label = contig), size = 3, parse = T, col ="darkred") + 
+  geom_text(data = df10, aes(x = 3.965477	 , y =13, label = contig), size = 3, parse = T, col ="darkred") +
+  ylim(0, 75)
+```
+# TajimaD of all polymorphic sites found in T.vulgaris
+```{r}
+df_all_poly.5 <- read_rds("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_merged_polymorphisms.5.rds")
+df_all_poly.5 <- df_all_poly.5[1:40089,] # remove NA in the end of the dataset
+```
+
+```{r}
+df_all_poly.5
+```
+
+# Calculate TAJIMA'S D
+```{r}
+n = 248
+h = c(0) # heterozygosity
+theta.pi = c(0)
+theta.w = c(0)
+tajimaD = c(0)
+a1=sum(1/(seq(from=1, to=(n-1), by=1)))
+variance.d <- function(n,S) {
+    a1=sum(1/(seq(from=1, to=(n-1), by=1)))
+    a2=sum(1/((seq(from=1, to=(n-1), by=1))**2))
+    b1=(n+1)/(3*(n-1))
+    b2=(2*((n**2)+n+3))/((9*n)*(n-1))
+    c1=b1 - (1/a1)
+    c2=b2-((n+2)/(a1*n)) + (a2/(a1**2))
+    e1=c1/a1
+    e2=c2/((a1**2)+a2)
+    var=(e1*S) + (e2*S*(S-1))
+    return(var)
+}
+
+for (i in 1:length(unique(df_all_poly.5$contig))) {
+  df <- df_all_poly.5 %>% filter(contig == unique(df_all_poly.5$contig)[i])
+  S <- nrow(df) # number of segregating sites of contigs
+  h <- c(0)
+  for (j in  1:nrow(df)) {
+    h[j] <- 2*df$freq_ref.t.vulgaris[j]*df$freq_alt.t.vulgaris[j]*(n/(n-1)) # heterozygosities
+  }   
+  theta.pi[i] <- sum(h) # sum of heterozygosities all segregating sites per contig
+  theta.w[i] <- S/a1
+  tajimaD[i] <- (theta.pi[i] - theta.w[i]) / (sqrt(variance.d(n,S)))
+}
+df_tajimaD_per_contigs <- tibble(contig = unique(df_all_poly.5$contig),
+                                     theta.w = theta.w,
+                                     theta.pi = theta.pi,
+                                     tajimaD = tajimaD,
+                                      )
+
+df_tajimaD_per_contigs %>%  summary()
+```
+
+# for the tajimaD test plot
+```{r}
+results_of_contigs_of_interest <- df_tajimaD_per_contigs %>%  filter(contig == "FC:Contig71000" | contig == "FC:Contig12377" | contig == "FC:KR920616.1"  | contig == "FC:JX946357.1"  |contig == "FC:KM272331.1" | contig == "FC:KM272332.1"   | contig == "FC:JX946358.1" |contig == "AT:Contig4190" |contig == "AT:Contig660"|contig == "FC:KC461937.1" )
+results_of_contigs_of_interest %>% arrange(tajimaD, decreasing = TRUE)
+
+df1 <- tibble(contig = "FC:Contig71000", tajimaD = -2.450597)
+df2 <- tibble(contig = "FC:KC461937.1", tajimaD = -2.435907)
+df3 <- tibble(contig = "FC:JX946358.1", tajimaD = -2.338164)
+df4 <- tibble(contig = "FC:JX946357.1", tajimaD = -2.183504)
+df5 <- tibble(contig = "FC:Contig12377", tajimaD = -2.071023)
+df6 <- tibble(contig = "AT:Contig4190", tajimaD = -1.900812)
+df7 <- tibble(contig = "FC:KM272331.1", tajimaD = -1.751299)
+df8 <- tibble(contig = "FC:KR920616.1", tajimaD = -1.541934)
+df9 <- tibble(contig = "AT:Contig660", tajimaD = -1.359601)
+df10 <- tibble(contig = "FC:KM272332.1", tajimaD = -2.141018	)
+
+```
+
+```{r}
+# TajimaD plot for the df_only_poly data (I put it here for the comparison)
+df_theta_stats_per_contigs %>% ggplot(aes(tajimaD)) + geom_histogram(bins = 70, fill = "darkred", col = "black") + ggtitle("TajimaD Results") +
+  ylim(0,30)
+
+# H statistics plot for the df_only_polymorphic data
+df_theta_stats_per_contigs %>% 
+  ggplot(aes(H.test)) +
+  geom_histogram(bins = 70, col = "black", fill = "lightblue") + 
+  ggtitle("H.test Results of only polymorphic sites of T.vulgaris") + 
+  geom_vline(xintercept = results.of.h.test.og.interest$H.test, color = "darkgrey", linetype = "dashed", size = 0.8) + 
+  geom_text(data = df1, aes(x = 1.938042	 , y = 31, label = contig), size = 2, parse = T, col ="darkred") +
+  geom_text(data = df2, aes(x = 0.286494	 , y = 70, label = contig), size = 2, parse = T, col ="darkred") +
+  geom_text(data = df3, aes(x = 2.067058	 , y = 34, label = contig), size = 2, parse = T, col ="darkred") +
+  geom_text(data = df4, aes(x = -1.915494	 , y = 29, label = contig), size = 2, parse = T, col ="darkred") +
+  geom_text(data = df5, aes(x = -2.685891	 , y = 25, label = contig), size = 2, parse = T, col ="darkred") +
+  geom_text(data = df6, aes(x = -17.939394	 , y = 20, label = contig), size = 2, parse = T, col ="darkred") +
+  geom_text(data = df7, aes(x = 3.169094	 , y = 25, label = contig), size = 2, parse = T, col ="darkred") +
+  geom_text(data = df8, aes(x = -1.252444	 , y = 39, label = contig), size = 2, parse = T, col ="darkred") +
+  geom_text(data = df9, aes(x = 4.283610	 , y =10, label = contig), size = 2, parse = T, col ="darkred") + 
+  geom_text(data = df10, aes(x = 3.965477	 , y =13, label = contig), size = 2, parse = T, col ="darkred") +
+  ylim(0, 75)
+
+# tajimaD plot for the df_merged_poly data
+df_tajimaD_per_contigs %>% 
+  ggplot(aes(tajimaD)) +
+  geom_histogram(bins = 70, col = "black", fill = "lightblue") + 
+  ggtitle("TajimaD Results of all polymorphic sites of T.vulgaris") + 
+  geom_vline(xintercept = results_of_contigs_of_interest$tajimaD, color = "darkgrey", linetype = "dashed", size = 0.8) + 
+  geom_text(data = df1, aes(x = -2.450597	 , y = 5, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = df2, aes(x = -2.435907	 , y = 8, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = df3, aes(x = -2.338164	 , y = 13, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = df4, aes(x = -2.183504	 , y = 21, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = df5, aes(x = -2.071023	 , y = 23, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = df6, aes(x = -1.900812	 , y = 20, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = df7, aes(x = -1.751299	 , y = 22, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = df8, aes(x = -1.541934	 , y = 17, label = contig), size = 3, parse = T, col ="darkred") +
+  geom_text(data = df9, aes(x = -1.359601	 , y = 10, label = contig), size = 3, parse = T, col ="darkred") + 
+  geom_text(data = df10, aes(x = -2.141018 , y =15, label = contig), size = 3, parse = T, col ="darkred") +
+  ylim(0, 30)
+```
+# Contigs that have high results for tajimaD and H.test
+```{r}
+df_theta_stats_per_contigs %>% arrange(H.test, decreasing = T)
+df_tajimaD_per_contigs %>%  arrange(tajimaD, decreasing = T)
+```
+# Joing scatter plot by using tajimaD and H.test from df_theta_stats_per_contigs that used df_only_poly_t.vulgaris
+```{r}
+p <- ggplot(df_theta_stats_per_contigs, mapping = aes(tajimaD, H.test))
+p + geom_point() + theme_bw()
+p + geom_jitter() + geom_smooth(span = 0.95)
+p + geom_density2d()
+p + geom_density2d() + geom_jitter(alpha = 0.25)
+```
+
+# Joing scatter plot by using tajimaD (from df_tajimaD_per_contigs) and H.test (from df_theta_stats_per_contigs)
+```{r}
+df2 <- tibble(contig = df_tajimaD_per_contigs, tajimaD = df_tajimaD_per_contigs$tajimaD, H.test = df_theta_stats_per_contigs$H.test)
+p <- ggplot(df2, mapping = aes(tajimaD, H.test))
+p + geom_point() + theme_bw()
+p + geom_jitter() + geom_smooth(span = 0.95)
+p + geom_density2d()
+p + geom_density2d() + geom_jitter(alpha = 0.25)
+
+```
+
+
+```{r}
+contigs_of_interest <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/contig_of_interest.rds")
+contigs_of_interest
+```
+
+# Create a dataframe contains info about contigs_of interest
+```{r}
+df_contigs_of_interest_results <- df_theta_stats_per_contigs %>% filter(contig %in% contigs_of_interest$contig)
+df_contigs_of_interest_results <- df_contigs_of_interest_results %>% subset(select = c(contig, theta.h,  H.test))
+df_contigs_of_interest_results <- df_contigs_of_interest_results %>% cbind((df_tajimaD_per_contigs %>%  filter(contig%in%df_contigs_of_interest_results$contig))[2:4]
+)
+df_contigs_of_interest_results %>% arrange(-tajimaD)
+```
+
+# SAVE IT
+```{r}
+#write_rds(df_theta_stats_per_contigs, "C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/df_theta_stats_per_contigs.rds")
+#write_rds(df_tajimaD_per_contigs, "C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/df_tajimaD_per_contigs.rds")
+
+```
+
+
