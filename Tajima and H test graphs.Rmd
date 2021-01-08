@@ -1,0 +1,89 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+```{r}
+library(tidyverse)
+```
+
+```{r}
+tajimaD <- read_rds("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/df_tajimaD_per_contigs.rds")
+
+Htest <- read_rds("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/cluster_files/df_theta_stats_per_contigs.rds")
+```
+
+```{r}
+results.of.h.test.og.interest <- Htest %>%  filter(contig == "FC:Contig71000" | contig == "FC:Contig12377" | contig == "FC:KR920616.1"  | contig == "FC:JX946357.1" | contig == "FC:KM272331.1" |  contig == "FC:KM272332.1" | contig == "FC:JX946358.1" |contig == "AT:Contig4190" |contig == "AT:Contig660"|contig == "FC:KC461937.1" ) %>%  arrange(H.test, decreasing = T)
+results.of.h.test.og.interest
+df1 <- tibble(contig = "FC:Contig71000", H.test = 1.938042)
+df2 <- tibble(contig = "FC:KC461937.1", H.test = 0.286494)
+df3 <- tibble(contig = "FC:JX946358.1", H.test = 2.067058)
+df4 <- tibble(contig = "FC:JX946357.1", H.test = -1.915494)
+df5 <- tibble(contig = "FC:Contig12377", H.test = -2.685891)
+df6 <- tibble(contig = "AT:Contig4190", H.test = -17.939394)
+df7 <- tibble(contig = "FC:KM272331.1", H.test = 3.169094)
+df8 <- tibble(contig = "FC:KR920616.1", H.test = -1.252444)
+df9 <- tibble(contig = "AT:Contig660", H.test = 4.283610)
+df10<- tibble(contig = "FC:KM272332.1", H.test = 3.965477	)
+```
+
+```{r}
+# H statistics plot for the df_only_polymorphic data
+Htest %>% 
+  ggplot(aes(H.test)) +
+  geom_histogram(bins = 70, col = "black", fill = "darkred") + xlab("Results of H test") + ylab("Frequency") +
+  ggtitle("H.test Results of only polymorphic sites of T.vulgaris") + 
+  theme_classic() +
+  geom_vline(xintercept = results.of.h.test.og.interest$H.test, color = "grey", linetype = "dashed", size = 0.6) + 
+  geom_text(data = df1, aes(x = 1.938042	 , y = 76, label = contig), size = 2, parse = T, col ="darkblue") +
+  geom_text(data = df2, aes(x = 0.286494	 , y = 74, label = contig), size = 2, parse = T, col ="darkblue") +
+  geom_text(data = df3, aes(x = 2.067058	 , y = 78, label = contig), size = 2, parse = T, col ="darkblue") +
+  geom_text(data = df4, aes(x = -1.915494	 , y = 70, label = contig), size = 2, parse = T, col ="darkblue") +
+  geom_text(data = df5, aes(x = -2.685891	 , y = 68, label = contig), size = 2, parse = T, col ="darkblue") +
+  geom_text(data = df6, aes(x = -17.939394	 , y = 65, label = contig), size = 2, parse = T, col ="darkblue") +
+  geom_text(data = df7, aes(x = 3.169094	 , y = 80, label = contig), size = 2, parse = T, col ="darkblue") +
+  geom_text(data = df8, aes(x = -1.252444	 , y = 72, label = contig), size = 2, parse = T, col ="darkblue") +
+  geom_text(data = df9, aes(x = 4.283610	 , y =84, label = contig), size = 2, parse = T, col ="darkblue") + 
+  geom_text(data = df10, aes(x = 3.965477	 , y =82, label = contig), size = 2, parse = T, col ="darkblue") +
+  ylim(0, 85)
+```
+
+```{r}
+results_of_contigs_of_interest <- tajimaD %>%  filter(contig == "FC:Contig71000" | contig == "FC:Contig12377" | contig == "FC:KR920616.1"  | contig == "FC:JX946357.1"  |contig == "FC:KM272331.1" | contig == "FC:KM272332.1"   | contig == "FC:JX946358.1" |contig == "AT:Contig4190" |contig == "AT:Contig660"|contig == "FC:KC461937.1" )
+results_of_contigs_of_interest %>% arrange(tajimaD, decreasing = TRUE)
+
+df1 <- tibble(contig = "FC:Contig71000", tajimaD = -2.450597)
+df2 <- tibble(contig = "FC:KC461937.1", tajimaD = -2.435907)
+df3 <- tibble(contig = "FC:JX946358.1", tajimaD = -2.338164)
+df4 <- tibble(contig = "FC:JX946357.1", tajimaD = -2.183504)
+df5 <- tibble(contig = "FC:Contig12377", tajimaD = -2.071023)
+df6 <- tibble(contig = "AT:Contig4190", tajimaD = -1.900812)
+df7 <- tibble(contig = "FC:KM272331.1", tajimaD = -1.751299)
+df8 <- tibble(contig = "FC:KR920616.1", tajimaD = -1.541934)
+df9 <- tibble(contig = "AT:Contig660", tajimaD = -1.359601)
+df10 <- tibble(contig = "FC:KM272332.1", tajimaD = -2.141018	)
+```
+
+```{r}
+# tajimaD plot for the df_merged_poly data
+tajimaD %>% 
+  ggplot(aes(tajimaD)) +
+  geom_histogram(bins = 70, col = "black", fill = "darkred") + xlab("Results of Tajima'D test") + ylab("Frequency") +
+  ggtitle("TajimaD Results of all polymorphic sites of T.vulgaris") + 
+  coord_flip() + theme_classic() + 
+  geom_vline(xintercept = results_of_contigs_of_interest$tajimaD, color = "grey", linetype = "dashed", size = 0.8) + 
+  geom_text(data = df1, aes(x = -2.450597	 , y = 23, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = df2, aes(x = -2.435907	 , y = 28, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = df3, aes(x = -2.338164	 , y = 25, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = df4, aes(x = -2.183504	 , y = 28, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = df5, aes(x = -2.071023	 , y = 25, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = df6, aes(x = -1.900812	 , y = 25, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = df7, aes(x = -1.751299	 , y = 25, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = df8, aes(x = -1.541934	 , y = 25, label = contig), size = 3, parse = T, col ="darkblue") +
+  geom_text(data = df9, aes(x = -1.359601	 , y = 25, label = contig), size = 3, parse = T, col ="darkblue") + 
+  geom_text(data = df10, aes(x = -2.141018 , y = 23, label = contig), size = 3, parse = T, col ="darkblue") +
+  ylim(0, 30)
+```
+
