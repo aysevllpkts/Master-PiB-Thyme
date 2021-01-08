@@ -1,0 +1,164 @@
+---
+title: "S0_filteringdata"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(tidyverse)
+```
+# loading data
+```{r}
+theme_set(theme_classic())
+df_genotype_tidy <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/Data/thymus_genotypes.tidy.rds")
+df_sample_info   <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/Data/thymus_sample_info.rds")
+df_snp_info      <- readRDS("C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/Data/thymus_snps_info.rds")
+```
+
+# Informatıon about Datasets:
+
+df_genotype_tidy:
+includes sample id, snps and their genotypes
+
+df_sample_info: 
+sample id, plant id, species, site_id, tag_site, lat_deg, lat_deci, log_deg, log_deci, altitude, chemotype
+
+df_snp_info:
+snps, contigs, position, reference, alternative
+
+# Identify bad samples
+```{r}
+bad_samples <- c("tha151", "tha063","tha238", "tha193") #from replicability
+dim(df_genotype_tidy)
+#sort(unique(df_genotype_tidy$sample_id)) # includes replicants, t.vulgaris, t.embergeri and 70km away
+```
+
+# remove bad samples and replicants
+```{r}
+df_genotype_tidy_without_bad_replicants <- df_genotype_tidy %>% 
+  filter(!(sample_id %in% bad_samples )) %>% 
+  filter(!grepl('b', sample_id))
+dim(df_genotype_tidy_without_bad_replicants)
+head(df_genotype_tidy_without_bad_replicants)
+#sort(unique(df_genotype_tidy_without_bad_replicants$sample_id))#258 samples(t.vul, t.embergeri, 70km away)
+```
+
+# Define samples only with known chemotypes (excl. 70km away and T. embergeri)
+253 - 259 70km away
+260 - 262 T. embergeri
+```{r}
+all_ids <- sort(unique(df_genotype_tidy_without_bad_replicants$sample_id))
+length(all_ids)
+#all_ids
+sml_ids <- all_ids[1:248]
+t_embergeri_ids <- all_ids[256:258]
+km_aways_ids <- all_ids[249:255]
+
+sml_ids # thymus vulgaris with known chemotypes
+t_embergeri_ids # t.embergeri ids
+km_aways_ids # t.vulgaris located 70km away without knowing chemotypes
+```
+
+# Remove 70km away samples and T.embergeri samples from data and calculating rate of known snps
+```{r}
+pd <- df_genotype_tidy_without_bad_replicants %>%
+  filter(sample_id %in% sml_ids) %>%
+  group_by(snp) %>%
+  summarise(good = sum(!is.na(genotype)),
+            rate = good / n(),
+            nb2 = sum(ifelse(is.na(genotype),0, genotype =="2")),
+            nb1 = sum(ifelse(is.na(genotype),0, genotype =="1")),
+            nb0 = sum(ifelse(is.na(genotype),0, genotype =="0")),
+            ) %>%
+  left_join(df_snp_info) %>%
+  {.}
+
+head(pd)
+```
+
+```{r}
+# for t.embergeri ids
+pd_t.embergeri <- df_genotype_tidy_without_bad_replicants %>%
+  filter(sample_id %in% t_embergeri_ids) %>%
+  group_by(snp) %>%
+  summarise(good = sum(!is.na(genotype)),
+            rate = good / n(),
+            nb2 = sum(ifelse(is.na(genotype),0, genotype =="2")),
+            nb1 = sum(ifelse(is.na(genotype),0, genotype =="1")),
+            nb0 = sum(ifelse(is.na(genotype),0, genotype =="0")),
+            ) %>%
+  left_join(df_snp_info) %>%
+  {.}
+
+head(pd_t.embergeri)
+```
+
+# calculating freq of reference and alternative allele
+```{r}
+# for t.vulgaris
+pd <- pd %>%
+  mutate(freq_ref=(2*nb0 + nb1)/(2*good),
+         freq_alt=(2*nb2 + nb1)/(2*good))
+
+# for t.embergeri
+pd_t.embergeri <- pd_t.embergeri %>%
+  mutate(freq_ref=(2*nb0 + nb1)/(2*good),
+         freq_alt=(2*nb2 + nb1)/(2*good))
+
+head(pd)
+head(pd_t.embergeri)
+```
+
+```{r}
+# plot for t.vulgaris
+ggplot(pd, aes(rate)) + geom_histogram(binwidth = 0.01) + 
+  geom_vline(xintercept = c(0.5, 0.6, 0.75, 0.8, 0.9), col = c('blue', 'red', "orange", "green", "purple"))
+
+# plot for t.embergeri
+ggplot(pd_t.embergeri, aes(rate)) + geom_histogram(binwidth = 0.01) +
+  geom_vline(xintercept = c(0.5, 0.6, 0.75, 0.8, 0.9), col = c('blue', 'red', "orange", "green", "purple"))
+```
+
+# filtered snps data for t.vulgaris and t.embergeri with 0.5 cutoff
+```{r}
+# t.vulgaris
+df_snp_filtered.t.vulgaris.5 <- pd %>% filter(rate > 0.5)
+
+# t.embergeri
+df_snp_filtered.t.embergeri.5 <- pd_t.embergeri %>% filter(rate > 0.5)
+
+# number of snps for each species
+dim(df_snp_filtered.t.vulgaris.5)
+dim(df_snp_filtered.t.embergeri.5)
+```
+
+# save filtered snp files
+```{r}
+# cutoff .5
+#write_rds(df_snp_filtered.t.vulgaris.5, "C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_snp_filtered.t.vulgaris.5.rds")
+#write_rds(df_snp_filtered.t.embergeri.5, "C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_snp_filtered.t.embergeri.5.rds")
+```
+
+# Number of genotypes after cutoff
+```{r}
+# t.vulgaris
+df_genotype_filtered.t.vulgaris.5 <- df_genotype_tidy_without_bad_replicants %>%
+  filter(snp %in% df_snp_filtered.t.vulgaris.5$snp) %>%
+  filter(sample_id %in% sml_ids)
+
+# t.embergeri
+df_genotype_filtered.t.embergeri.5 <- df_genotype_tidy_without_bad_replicants %>%
+  filter(snp %in% df_snp_filtered.t.embergeri.5$snp) %>%
+  filter(sample_id %in% t_embergeri_ids)
+
+# number of genotypes per species
+dim(df_genotype_filtered.t.vulgaris.5)
+dim(df_genotype_filtered.t.embergeri.5)
+```
+
+# Save filtered genotypes files for 0.5 cutoff
+```{r}
+#write_rds(df_genotype_filtered.t.vulgaris.5, "C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_genotype_filtered.t.vulgaris.5")
+#write_rds(df_genotype_filtered.t.embergeri.5, "C:/Users/Aysevil/Dropbox/Aarhus Lectures/Project/tidy files/df_genotype_filtered.t.embergeri.5")
+```
